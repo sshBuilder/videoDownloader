@@ -1,1 +1,1 @@
-web: npm run download-yt-dlp && npm start
+web: bash download-yt-dlp && npm start
