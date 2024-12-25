@@ -6,8 +6,19 @@ const express = require('express');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Rate Limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many download requests from this IP, please try again later.'
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
 
 // Middleware to parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
@@ -15,7 +26,19 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Explicit GET route for '/'
+// Helper function to validate URLs
+const validDomains = ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com'];
+
+function isValidUrl(url) {
+    try {
+        const parsedUrl = new URL(url);
+        return validDomains.includes(parsedUrl.hostname.replace('www.', ''));
+    } catch (e) {
+        return false;
+    }
+}
+
+// Route to serve index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -25,11 +48,17 @@ app.post('/download', (req, res) => {
     const videoUrl = req.body.videoUrl;
 
     if (!videoUrl) {
+        console.error('No video URL provided.');
         return res.status(400).send('No video URL provided.');
     }
 
-    // Sanitize the URL (basic sanitization)
+    // Sanitize and validate the URL
     const sanitizedUrl = videoUrl.trim();
+
+    if (!isValidUrl(sanitizedUrl)) {
+        console.error('Invalid video URL provided.');
+        return res.status(400).send('Invalid video URL provided.');
+    }
 
     // Path to yt-dlp executable
     const ytDlpPath = path.join(__dirname, 'files', 'yt-dlp');
@@ -39,6 +68,8 @@ app.post('/download', (req, res) => {
         console.error(`yt-dlp executable not found at ${ytDlpPath}`);
         return res.status(500).send('yt-dlp executable not found.');
     }
+
+    console.log(`Starting download for URL: ${sanitizedUrl}`);
 
     // Spawn the yt-dlp process
     const ytDlp = spawn(ytDlpPath, [
@@ -51,6 +82,8 @@ app.post('/download', (req, res) => {
     let videoTitle = 'downloaded_video';
     let contentType = 'video/mp4'; // Default content type
 
+    let hasData = false;
+
     // Capture stderr to check for errors and extract video title
     ytDlp.stderr.on('data', (data) => {
         const message = data.toString();
@@ -60,6 +93,7 @@ app.post('/download', (req, res) => {
         const titleMatch = message.match(/title\s+:\s+(.*)/i);
         if (titleMatch && titleMatch[1]) {
             videoTitle = titleMatch[1].replace(/[<>:"/\\|?*]+/g, ''); // Remove illegal characters
+            console.log(`Extracted video title: ${videoTitle}`);
         }
 
         // Optionally, extract content type if available
@@ -72,19 +106,25 @@ app.post('/download', (req, res) => {
             } else if (format.includes('webm')) {
                 contentType = 'video/webm';
             }
-            // Add more mappings as needed
+            console.log(`Detected content type: ${contentType}`);
         }
     });
 
     ytDlp.on('error', (error) => {
         console.error(`Error spawning yt-dlp: ${error.message}`);
-        res.status(500).send('An error occurred while downloading the video.');
+        if (!res.headersSent) {
+            res.status(500).send('An error occurred while downloading the video.');
+        }
     });
 
     ytDlp.on('close', (code) => {
         if (code !== 0) {
             console.error(`yt-dlp exited with code ${code}`);
-            res.status(500).send('An error occurred while downloading the video.');
+            if (!res.headersSent) {
+                res.status(500).send('An error occurred while downloading the video.');
+            }
+        } else {
+            console.log('yt-dlp process completed successfully.');
         }
     });
 
@@ -92,12 +132,28 @@ app.post('/download', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${videoTitle}.mp4"`);
     res.setHeader('Content-Type', contentType);
 
+    // Capture stdout data
+    ytDlp.stdout.on('data', (data) => {
+        hasData = true;
+        console.log(`Received ${data.length} bytes of data.`);
+    });
+
     // Pipe yt-dlp stdout directly to the response
     ytDlp.stdout.pipe(res);
 
     // Handle client disconnect
     req.on('close', () => {
         ytDlp.kill('SIGINT');
+        console.log('Client disconnected, killed yt-dlp process.');
+    });
+
+    // Handle response finish
+    res.on('finish', () => {
+        if (!hasData) {
+            console.error('No data was piped to the response.');
+        } else {
+            console.log('Download completed and response finished.');
+        }
     });
 });
 

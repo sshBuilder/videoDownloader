@@ -29,5 +29,8 @@ coverage/
 # dotenv environment variables file
 .env
 
+# Git keep for files directory
+files/.gitkeep
+
 # Mac system files
 .DS_Store

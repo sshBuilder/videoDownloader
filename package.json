@@ -8,11 +8,12 @@
     "download-yt-dlp": "bash download-yt-dlp.sh"
   },
   "dependencies": {
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "express-rate-limit": "^6.7.0"
   },
   "engines": {
-    "node": ">=14.x"
+    "node": "18.x"
   },
   "keywords": [],
   "author": "",
