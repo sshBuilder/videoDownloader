@@ -1,135 +1,47 @@
-<!-- public/index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Video Downloader</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Reset default browser styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        /* Set full-screen dark background */
-        body, html {
-            height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1f1c2c, #928dab);
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
             display: flex;
+            height: 100vh;
+            align-items: center;
             justify-content: center;
-            align-items: center;
-            color: #ffffff;
         }
-
-        /* Frosted glass panel */
         .container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 16px;
+            background-color: white;
             padding: 40px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        /* Title styling */
-        .container h2 {
-            margin-bottom: 20px;
-            font-size: 28px;
-            text-align: center;
-            color: #ffffff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-
-        /* Input field styling */
-        .container input[type="url"] {
-            width: 100%;
-            padding: 12px 20px;
-            margin-bottom: 20px;
-            border: none;
             border-radius: 8px;
-            outline: none;
-            font-size: 16px;
-            background: rgba(255, 255, 255, 0.2);
-            color: #ffffff;
-            transition: background 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-
-        .container input[type="url"]::placeholder {
-            color: #dddddd;
-        }
-
-        .container input[type="url"]:focus {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        /* Button styling */
-        .container button {
+        input[type="url"] {
             width: 100%;
             padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
             background-color: #4CAF50;
-            border: none;
-            border-radius: 8px;
             color: white;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        }
-
-        .container button:hover {
-            background-color: #45a049;
-            transform: translateY(-2px);
-        }
-
-        .container button:active {
-            transform: translateY(0);
-        }
-
-        /* Message styling */
-        #responseMessage {
-            margin-top: 20px;
-            width: 100%;
-            text-align: center;
             padding: 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            display: none; /* Hidden by default */
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
         }
-
-        .message.success {
-            background-color: rgba(46, 125, 50, 0.8);
-            color: #e0f2f1;
+        button:hover {
+            background-color: #45a049;
         }
-
-        .message.error {
-            background-color: rgba(194, 24, 91, 0.8);
-            color: #ffebee;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 500px) {
-            .container {
-                padding: 30px 20px;
-            }
-
-            .container h2 {
-                font-size: 24px;
-            }
-
-            .container input[type="url"], .container button {
-                font-size: 14px;
-                padding: 10px;
-            }
+        .message {
+            margin-top: 20px;
+            text-align: center;
+            color: red;
         }
     </style>
 </head>
@@ -137,90 +49,23 @@
     <div class="container">
         <h2>Video Downloader</h2>
         <form id="downloadForm" method="POST" action="/download">
-            <input type="url" id="videoUrl" name="videoUrl" placeholder="Enter video URL here" required>
+            <input type="url" name="videoUrl" placeholder="Enter video URL" required>
             <button type="submit">Download Video</button>
         </form>
-        <div id="responseMessage"></div>
+        <div class="message" id="message"></div>
     </div>
 
     <script>
         const form = document.getElementById('downloadForm');
-        const responseDiv = document.getElementById('responseMessage');
+        const messageDiv = document.getElementById('message');
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            responseDiv.style.display = 'none'; // Hide previous messages
-            responseDiv.classList.remove('success', 'error');
-            responseDiv.textContent = '';
-
-            const formData = new FormData(form);
-            const videoUrl = formData.get('videoUrl').trim();
-
-            // Basic URL validation
-            if (!isValidUrl(videoUrl)) {
-                displayMessage('Please enter a valid URL.', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'videoUrl': videoUrl
-                    })
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    // Extract filename from Content-Disposition header
-                    const disposition = response.headers.get('Content-Disposition');
-                    let filename = 'downloaded_video.mp4';
-                    if (disposition && disposition.indexOf('attachment') !== -1) {
-                        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                        const matches = filenameRegex.exec(disposition);
-                        if (matches != null && matches[1]) { 
-                            filename = matches[1].replace(/['"]/g, '');
-                        }
-                    }
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                    displayMessage('Video is downloading...', 'success');
-                    form.reset(); // Clear the form
-                } else {
-                    const text = await response.text();
-                    displayMessage(text, 'error');
-                }
-            } catch (error) {
-                displayMessage('An unexpected error occurred.', 'error');
-                console.error(error);
-            }
+        form.addEventListener('submit', function(event) {
+            messageDiv.textContent = 'Processing...';
         });
 
-        // Function to display messages
-        function displayMessage(message, type) {
-            responseDiv.textContent = message;
-            responseDiv.classList.add('message', type);
-            responseDiv.style.display = 'block';
-        }
-
-        // Function to validate URL
-        function isValidUrl(string) {
-            try {
-                new URL(string);
-                return true;
-            } catch (_) {
-                return false;  
-            }
-        }
+        form.addEventListener('error', function(event) {
+            messageDiv.textContent = 'An error occurred.';
+        });
     </script>
 </body>
 </html>
