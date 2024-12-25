@@ -76,11 +76,13 @@ app.post('/download', (req, res) => {
         sanitizedUrl,
         '-f', 'best',    // Select the best available format
         '-o', '-',        // Output to stdout
-        '--no-part'       // Do not create .part files
+        '--no-part',      // Do not create .part files
+        '--quiet',        // Suppress output
+        '--no-warnings'   // Suppress warnings
     ]);
 
     let videoTitle = 'downloaded_video';
-    let contentType = 'video/mp4'; // Default content type
+    let contentType = 'application/octet-stream'; // Default content type
 
     let hasData = false;
 
